@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/viper"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -12,13 +13,12 @@ import (
 	"time"
 )
 
-var d, _ = time.ParseDuration("10s")
-var activeThreshold = d.Seconds()
-var p, _ = time.ParseDuration("10s")
-var pollInterval = p.Seconds()
+var pollInterval int
+var postUrl string
+var appKey string
 
 func postJson(jsonStr []byte) {
-	url := "http://127.0.0.1:5000/v1/event/add"
+	url := postUrl
 	fmt.Println("URL:>", url)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
@@ -39,6 +39,11 @@ func postJson(jsonStr []byte) {
 	fmt.Println("response Body:", string(body))
 }
 
+type PostBody struct {
+	Window *Window
+	AppKey string
+}
+
 type Window struct {
 	Title      string         `json:"title"`
 	Start_time *time.Time     `json:"start_time"`
@@ -56,7 +61,8 @@ func (w Window) runningDuration() (duration *time.Duration) {
 }
 
 func (w *Window) ToJson() (windowJson []byte) {
-	windowJson, err := json.Marshal(*w)
+	postBody := PostBody{Window: w, AppKey: appKey}
+	windowJson, err := json.Marshal(postBody)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -126,13 +132,25 @@ func getWindowTitle() (title string) {
 	return runCmd(cmd)
 }
 
+func init() {
+	viper.SetConfigName("config")
+	viper.AddConfigPath(".")
+	err := viper.ReadInConfig()
+	if err != nil {
+		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+	}
+	pollInterval = viper.GetInt("pollInterval")
+	postUrl = viper.GetString("postUrl")
+	appKey = viper.GetString("appKey")
+}
+
 func main() {
 	var now = time.Now().UTC()
 	title := getAppName() + " || " + getWindowTitle()
 	var window = Window{Title: title, Start_time: &now}
 	var window_tracker = WindowTracker{activeWindow: &window}
 	for {
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(time.Duration(pollInterval) * time.Second)
 		title := getAppName() + " || " + getWindowTitle()
 		window_tracker.Poll(title)
 	}

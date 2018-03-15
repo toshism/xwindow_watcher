@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/spf13/viper"
 	"io/ioutil"
@@ -74,12 +75,34 @@ type WindowTracker struct {
 	activeWindow   *Window
 	previousWindow *Window
 	currentWindow  *Window
+	windowHistory  []*Window
+}
+
+func (wt *WindowTracker) Push(w *Window) {
+	wt.windowHistory = append(wt.windowHistory, w)
+}
+
+func (wt *WindowTracker) Pop() (w *Window, err error) {
+	if len(wt.windowHistory) == 0 {
+		return &Window{}, errors.New("Window queue is empty")
+	}
+	w = wt.windowHistory[0]
+	wt.windowHistory = wt.windowHistory[1:]
+	return w, nil
 }
 
 func (wt *WindowTracker) NewActive(title string) {
 	var now = time.Now().UTC()
 	var duration = time.Since(*wt.activeWindow.Start_time)
 	new_window := &Window{Title: title, Start_time: &now}
+
+	// add queue to log previously seen windows
+	old_window, err := wt.Pop()
+	if err != nil {
+		old_window = nil
+	}
+	fmt.Println(old_window)
+	wt.Push(new_window)
 
 	wt.previousWindow = wt.activeWindow
 	wt.previousWindow.End_time = &now

@@ -36,15 +36,6 @@ type PostBody struct {
 	AppKey string
 }
 
-func (w Window) runningDuration() (duration *time.Duration) {
-	if w.Duration != nil {
-		return w.Duration
-	} else {
-		t := time.Since(*w.Start_time)
-		return &t
-	}
-}
-
 func (w *Window) ToJson() (windowJson []byte) {
 	postBody := PostBody{Window: w, AppKey: appKey}
 	windowJson, err := json.Marshal(postBody)

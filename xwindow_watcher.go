@@ -16,7 +16,6 @@ import (
 var pollInterval int
 var postUrl string
 var appKey string
-var minFocus float64 = (10 * time.Second).Seconds()
 
 type Window struct {
 	Title      string         `json:"title"`
@@ -132,7 +131,6 @@ func init() {
 	pollInterval = viper.GetInt("pollInterval")
 	postUrl = viper.GetString("postUrl")
 	appKey = viper.GetString("appKey")
-	minFocus = viper.GetFloat64("minFocus")
 }
 
 func main() {

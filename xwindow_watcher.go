@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/spf13/viper"
 	"io/ioutil"
@@ -18,47 +17,22 @@ var pollInterval int
 var postUrl string
 var appKey string
 
-func postJson(jsonStr []byte) {
-	url := postUrl
-	fmt.Println("URL:>", url)
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		// panic(err)
-		fmt.Println(err)
-		return
-	}
-	defer resp.Body.Close()
-
-	fmt.Println("response Status:", resp.Status)
-	fmt.Println("response Headers:", resp.Header)
-	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("response Body:", string(body))
-}
-
-type PostBody struct {
-	Window *Window
-	AppKey string
-}
-
 type Window struct {
 	Title      string         `json:"title"`
+	AppName    string         `json:"app_name"`
 	Start_time *time.Time     `json:"start_time"`
 	End_time   *time.Time     `json:"end_time"`
 	Duration   *time.Duration `json:"duration"`
 }
 
-func (w Window) runningDuration() (duration *time.Duration) {
-	if w.Duration != nil {
-		return w.Duration
-	} else {
-		t := time.Since(*w.Start_time)
-		return &t
-	}
+type WindowTracker struct {
+	activeWindow   *Window
+	previousWindow *Window
+}
+
+type PostBody struct {
+	Window *Window
+	AppKey string
 }
 
 func (w *Window) ToJson() (windowJson []byte) {
@@ -71,38 +45,30 @@ func (w *Window) ToJson() (windowJson []byte) {
 	return windowJson
 }
 
-type WindowTracker struct {
-	activeWindow   *Window
-	previousWindow *Window
-	currentWindow  *Window
-	windowHistory  []*Window
-}
+func postJson(jsonStr []byte) {
+	url := postUrl
 
-func (wt *WindowTracker) Push(w *Window) {
-	wt.windowHistory = append(wt.windowHistory, w)
-}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
+	req.Header.Set("Content-Type", "application/json")
 
-func (wt *WindowTracker) Pop() (w *Window, err error) {
-	if len(wt.windowHistory) == 0 {
-		return &Window{}, errors.New("Window queue is empty")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
-	w = wt.windowHistory[0]
-	wt.windowHistory = wt.windowHistory[1:]
-	return w, nil
+	defer resp.Body.Close()
+
+	fmt.Println("response Status:", resp.Status)
+	fmt.Println("response Headers:", resp.Header)
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println("response Body:", string(body))
 }
 
-func (wt *WindowTracker) NewActive(title string) {
+func (wt *WindowTracker) NewActive(title string, AppName string) {
 	var now = time.Now().UTC()
 	var duration = time.Since(*wt.activeWindow.Start_time)
-	new_window := &Window{Title: title, Start_time: &now}
-
-	// add queue to log previously seen windows
-	old_window, err := wt.Pop()
-	if err != nil {
-		old_window = nil
-	}
-	fmt.Println(old_window)
-	wt.Push(new_window)
+	new_window := &Window{Title: title, Start_time: &now, AppName: AppName}
 
 	wt.previousWindow = wt.activeWindow
 	wt.previousWindow.End_time = &now
@@ -110,27 +76,27 @@ func (wt *WindowTracker) NewActive(title string) {
 	wt.activeWindow = new_window
 }
 
-func (wt *WindowTracker) Poll(title string) {
+func (wt *WindowTracker) Poll(title string, AppName string) {
 	if title != wt.activeWindow.Title {
-		wt.NewActive(title)
+		wt.NewActive(title, AppName)
 		fmt.Println(wt.activeWindow.Title)
 		window_json := wt.previousWindow.ToJson()
-		postJson(window_json)
+		go postJson(window_json)
 	}
 }
 
 func runCmd(cmd *exec.Cmd) string {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("stdout error : %v", err)
 	}
 	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
+		fmt.Printf("start error : %v", err)
 	}
 	b, _ := ioutil.ReadAll(stdout)
 
 	if err := cmd.Wait(); err != nil {
-		log.Fatal(err)
+		fmt.Printf("wait error : %v", err)
 	}
 	return strings.TrimSuffix(string(b), "\n")
 }
@@ -174,7 +140,8 @@ func main() {
 	var window_tracker = WindowTracker{activeWindow: &window}
 	for {
 		time.Sleep(time.Duration(pollInterval) * time.Second)
-		title := getAppName() + " || " + getWindowTitle()
-		window_tracker.Poll(title)
+		title := getWindowTitle()
+		AppName := getAppName()
+		window_tracker.Poll(title, AppName)
 	}
 }

@@ -2,36 +2,29 @@
 <head>
   <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
   <script type="text/javascript">
-    google.charts.load('current', {'packages':['gantt']});
+    google.charts.load('current', {'packages':['timeline']});
     google.charts.setOnLoadCallback(drawChart);
 
     function drawChart() {
 
       var data = new google.visualization.DataTable();
-      data.addColumn('string', 'Task ID');
-      data.addColumn('string', 'Task Name');
-      data.addColumn('string', 'Resource');
+      data.addColumn('string', 'App Name');
+        data.addColumn('string', 'Title');
       data.addColumn('date', 'Start Date');
       data.addColumn('date', 'End Date');
-      data.addColumn('number', 'Duration');
-      data.addColumn('number', "Percent Complete");
-      data.addColumn('string', 'Dependencies');
 
         data.addRows([
             {{range $key, $activity := .Activities}}
-              ['{{$activity.Id}}', '{{$activity.AppName}}', '{{$activity.Name}}',
-               new Date({{$activity.Started_time}}), new Date({{$activity.End_time}}), null, 100, null],
+              ['{{$activity.AppName}}', '{{$activity.Name}}',
+               new Date({{$activity.Started_time}}), new Date({{$activity.End_time}})],
             {{end}}
         ]);
 
       var options = {
         height: 800,
-        gantt: {
-          trackHeight: 30
-        }
       };
 
-      var chart = new google.visualization.Gantt(document.getElementById('chart_div'));
+      var chart = new google.visualization.Timeline(document.getElementById('chart_div'));
 
       chart.draw(data, options);
     }

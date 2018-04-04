@@ -81,13 +81,13 @@ type Page struct{}
 func index(w http.ResponseWriter, r *http.Request) {
 	t, _ := template.ParseFiles("templates/index.html")
 	// p := Page{}
-	p := get_last_n_events(20)
+	p := get_last_n_events(10000)
 	t.Execute(w, p)
 }
 
 func get_last_n_events(n int) (activity_list *ActivityList) {
 	// rows, err := db.Query("SELECT * FROM activity JOIN apps ON apps.id = activity.app_id LIMIT ?", n)
-	rows, err := db.Query("SELECT activity.id, activity.name, activity.started_time, activity.end_time, activity.duration, activity.app_id, apps.name FROM activity JOIN apps ON apps.id = activity.app_id WHERE duration IS NOT NULL ORDER BY activity.started_time DESC LIMIT ?", n)
+	rows, err := db.Query("SELECT activity.id, activity.name, activity.started_time, activity.end_time, activity.duration, activity.app_id, apps.name FROM activity JOIN apps ON apps.id = activity.app_id WHERE duration IS NOT NULL AND date(activity.started_time) = date('now', '-1 day') ORDER BY activity.started_time DESC LIMIT ?", n)
 	if err != nil {
 		log.Fatal(err)
 	}

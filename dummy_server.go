@@ -15,14 +15,14 @@ import (
 )
 
 type Activity struct {
-	Id              int
-	Name            string
-	Started_time    time.Time
-	End_time        time.Time
-	Duration        time.Duration
-	DurationSeconds int64
-	App_id          int
-	AppName         string
+	Id              int           `json:"id"`
+	Name            string        `json:"name"`
+	Started_time    time.Time     `json:"start_time"`
+	End_time        time.Time     `json:"end_time"`
+	Duration        time.Duration `json:"duration_nano"`
+	DurationSeconds int64         `json:"duration_seconds"`
+	App_id          int           `json:"app_id"`
+	AppName         string        `json:"app_name"`
 }
 
 type App struct {
@@ -32,7 +32,7 @@ type App struct {
 }
 
 type ActivityList struct {
-	Activities []*Activity
+	Activities []*Activity `json:"activities"`
 }
 
 type PostBody struct {
@@ -85,6 +85,22 @@ func index(w http.ResponseWriter, r *http.Request) {
 	t.Execute(w, p)
 }
 
+func activities_page(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "templates/activities.html")
+}
+
+func json_activities(w http.ResponseWriter, r *http.Request) {
+	activities := get_last_n_events(10000)
+	js, err := json.Marshal(activities)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(js)
+}
+
 func get_last_n_events(n int) (activity_list *ActivityList) {
 	// rows, err := db.Query("SELECT * FROM activity JOIN apps ON apps.id = activity.app_id LIMIT ?", n)
 	rows, err := db.Query("SELECT activity.id, activity.name, activity.started_time, activity.end_time, activity.duration, activity.app_id, apps.name FROM activity JOIN apps ON apps.id = activity.app_id WHERE duration IS NOT NULL AND date(activity.started_time) = date('now', '-1 day') ORDER BY activity.started_time DESC LIMIT ?", n)
@@ -96,7 +112,6 @@ func get_last_n_events(n int) (activity_list *ActivityList) {
 	for rows.Next() {
 		var activity = Activity{}
 		rows.Scan(&activity.Id, &activity.Name, &activity.Started_time, &activity.End_time, &activity.Duration, &activity.App_id, &activity.AppName)
-		fmt.Println(activity)
 		activity.DurationSeconds, _ = strconv.ParseInt(strconv.FormatFloat(activity.Duration.Seconds(), 'f', 0, 64), 10, 64)
 		activity_list.Activities = append(activity_list.Activities, &activity)
 	}
@@ -126,6 +141,13 @@ func get_or_create_app(appName string) (id int64) {
 	return id
 }
 
+func mainjs(w http.ResponseWriter, r *http.Request) {
+	// t, _ := template.ParseFiles("templages/activities.html")
+	// p := Page{}
+	// t.Execute(w, p)
+	http.ServeFile(w, r, "static/main.js")
+}
+
 var db *sql.DB
 
 func main() {
@@ -136,8 +158,11 @@ func main() {
 	}
 	// defer db.Close()
 
-	fmt.Println("waiting...")
+	fmt.Println("Running...")
 	http.HandleFunc("/v1/event/add", printRequest)
+	http.HandleFunc("/activities", activities_page)
+	http.HandleFunc("/api/v1/activities", json_activities)
+	http.HandleFunc("/static/main.js", mainjs)
 	http.HandleFunc("/", index)
 
 	log.Fatal(http.ListenAndServe(":5000", nil))
